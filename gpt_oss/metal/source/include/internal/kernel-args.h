@@ -136,6 +136,7 @@ struct gptoss_qkv_args {
     float yarn_offset;
     float yarn_scale;
     float yarn_multiplier;
+    uint32_t max_tokens;
 };
 
 struct gptoss_softmax_args {

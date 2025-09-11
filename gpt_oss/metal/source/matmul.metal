@@ -72,8 +72,9 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
     const device float4* input [[ buffer(1) ]],
     const device bfloat4* weight [[ buffer(2) ]],
     const device bfloat* bias [[ buffer(3) ]],
-    device float* output [[ buffer(4) ]],
-    const device gptoss_control* control [[ buffer(5) ]],
+    device float* q [[ buffer(4) ]],
+    device float* kv [[ buffer(5) ]],
+    const device gptoss_control* control [[ buffer(6) ]],
     threadgroup void* scratch [[ threadgroup(0) ]],
     uint2 gid [[threadgroup_position_in_grid]],
     uint simdgroup_tid [[thread_index_in_simdgroup]],
@@ -94,7 +95,7 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
     input += gid.y * num_column_vecs + simdgroup_tid;
     weight += num_column_vecs * row + simdgroup_tid;
     bias += row;
-    output += gid.y * args.num_rows;
+    q += gid.y * args.num_rows;
 
     uint num_iter = (num_column_vecs - simdgroup_tid + (simdgroup_size - 1)) / simdgroup_size;
 
@@ -121,13 +122,13 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
             float2 vals = static_cast<const threadgroup float2*>(scratch)[simdgroup_tid];
             const uint idx = gid.x * num_half_simdgroups + simdgroup_tid;
             const uint head_idx = idx / (head_dim / 2);
+            const uint token_idx = args.token_offset + gid.y;
+            const uint dim_idx = idx % (head_dim / 2);
             if (head_idx < num_q_heads + num_kv_heads) {
-                const uint token_idx = args.token_offset + gid.y;
-                const float dim_idx = static_cast<float>(idx % (head_dim / 2));
-
-                const float inv_extrapolation_freq = metal::precise::exp(dim_idx * args.freq_scale);
+                const float dim_idx_val = static_cast<float>(dim_idx);
+                const float inv_extrapolation_freq = metal::precise::exp(dim_idx_val * args.freq_scale);
                 const float inv_interpolation_freq = inv_extrapolation_freq * args.interpolation_scale;
-                const float alpha = metal::saturate(metal::fma(dim_idx, args.yarn_scale, args.yarn_offset));
+                const float alpha = metal::saturate(metal::fma(dim_idx_val, args.yarn_scale, args.yarn_offset));
                 const float inv_freq = metal::mix(inv_extrapolation_freq, inv_interpolation_freq, alpha);
 
                 const float phi = static_cast<float>(token_idx) * inv_freq;
@@ -136,11 +137,20 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
                 const float sinphi = metal::precise::sincos(phi, cosphi) * yarn_multiplier;
                 cosphi *= yarn_multiplier;
 
-                const float output_re = vals.x * cosphi - vals.y * sinphi;
-                const float output_im = vals.x * sinphi + vals.y * cosphi;
-                vals = (float2) { output_re, output_im };
+                vals = (float2) {
+                    vals.x * cosphi - vals.y * sinphi,
+                    vals.x * sinphi + vals.y * cosphi,
+                };
             }
-            reinterpret_cast<device float2*>(output)[idx] = vals;
+            if (head_idx < num_q_heads) {
+                reinterpret_cast<device float2*>(q)[idx] = vals;
+            } else if (head_idx < num_q_heads + num_kv_heads) {
+                const uint h = head_idx - num_q_heads;
+                reinterpret_cast<device float2*>(kv + (h * args.max_tokens + token_idx) * 2 * head_dim)[dim_idx] = vals;
+            } else {
+                const uint h = head_idx - num_q_heads - num_kv_heads;
+                reinterpret_cast<device float2*>(kv + (h * args.max_tokens + token_idx) * 2 * head_dim + head_dim)[dim_idx] = vals;
+            }
         }
     }
 }
