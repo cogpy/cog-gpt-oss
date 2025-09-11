@@ -309,16 +309,20 @@ static enum gptoss_status process_tokens(
             }
 
             for (uint32_t t = 0; t < input_batch_size; t++) {
-                status = gptoss_metal_command_buffer_encode_copy_buffer(
-                    command_buffer,
-                    &context->qkv_activation_buffer,
-                    /*input_offset=*/(t * attn_qkv_dim + model->num_heads * model->head_dim) * sizeof(float),
-                    &context->kvcache_buffer,
-                    /*output_offset=*/(n * context->max_tokens + input_batch_start + t) * 2 * model->num_kv_heads * model->head_dim * sizeof(float),
-                    /*size=*/2 * model->num_kv_heads * model->head_dim * sizeof(float));
-                if (status != gptoss_status_success) {
-                    GPTOSS_LOG_ERROR("failed to encode copy of token %" PRIu32 " to KV cache", t);
-                    return status;
+                for (uint32_t kv = 0; kv < 2; kv++) {
+                    for (uint32_t h = 0; h < model->num_kv_heads; h++) {
+                        status = gptoss_metal_command_buffer_encode_copy_buffer(
+                            command_buffer,
+                            &context->qkv_activation_buffer,
+                            /*input_offset=*/(t * attn_qkv_dim + (model->num_heads + kv * model->num_kv_heads + h) * model->head_dim) * sizeof(float),
+                            &context->kvcache_buffer,
+                            /*output_offset=*/(((n * model->num_kv_heads + h) * context->max_tokens + input_batch_start + t) * 2 + kv) * model->head_dim * sizeof(float),
+                            /*size=*/model->head_dim * sizeof(float));
+                        if (status != gptoss_status_success) {
+                            GPTOSS_LOG_ERROR("failed to encode copy of token %" PRIu32 " to KV cache", t);
+                            return status;
+                        }
+                    }
                 }
             }
 
@@ -329,9 +333,7 @@ static enum gptoss_status process_tokens(
                     &context->qkv_activation_buffer,
                     /*q_offset=*/attn_qkv_dim * (input_batch_size - num_block_output_tokens) * sizeof(float),
                     &context->kvcache_buffer,
-                    /*k_offset=*/n * context->max_tokens * 2 * model->num_kv_heads * model->head_dim * sizeof(float),
-                    &context->kvcache_buffer,
-                    /*v_offset=*/(n * context->max_tokens * 2 + 1) * model->num_kv_heads * model->head_dim * sizeof(float),
+                    /*kv_offset=*/n * model->num_kv_heads * context->max_tokens * 2 * model->head_dim * sizeof(float),
                     &model->shared_weight_buffer,
                     /*s_offset=*/model->attn_sdpa_sink_offset + model->per_block_shared_weights_size * n,
                     &context->sdpa_activation_buffer,
@@ -339,6 +341,7 @@ static enum gptoss_status process_tokens(
                     &context->control_buffer,
                     /*control_offset=*/0,
                     /*window=*/n % 2 == 0 ? model->attention_window : UINT32_MAX,
+                    /*kv_stride=*/2 * context->max_tokens * model->head_dim,
                     num_block_output_tokens,
                     input_batch_start + input_batch_size - num_block_output_tokens,
                     model->num_heads, model->num_kv_heads, model->head_dim);

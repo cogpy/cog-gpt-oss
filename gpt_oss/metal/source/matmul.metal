@@ -120,8 +120,8 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
         if (simdgroup_tid < num_half_simdgroups) {
             float2 vals = static_cast<const threadgroup float2*>(scratch)[simdgroup_tid];
             const uint idx = gid.x * num_half_simdgroups + simdgroup_tid;
-            const uint qk_end = (num_q_heads + num_kv_heads) * (head_dim / 2);
-            if (idx < qk_end) {
+            const uint head_idx = idx / (head_dim / 2);
+            if (head_idx < num_q_heads + num_kv_heads) {
                 const uint token_idx = args.token_offset + gid.y;
                 const float dim_idx = static_cast<float>(idx % (head_dim / 2));
 
@@ -136,8 +136,8 @@ kernel void gptoss_f32_bf16w_matmul_qkv(
                 const float sinphi = metal::precise::sincos(phi, cosphi) * yarn_multiplier;
                 cosphi *= yarn_multiplier;
 
-                const float output_re = metal::fma(-vals.y, sinphi, vals.x * cosphi);
-                const float output_im = metal::fma(vals.y, cosphi, vals.x * sinphi);
+                const float output_re = vals.x * cosphi - vals.y * sinphi;
+                const float output_im = vals.x * sinphi + vals.y * cosphi;
                 vals = (float2) { output_re, output_im };
             }
             reinterpret_cast<device float2*>(output)[idx] = vals;

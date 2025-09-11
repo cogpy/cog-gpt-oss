@@ -1027,10 +1027,8 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_sdpa(
     const struct gptoss_metal_function* f32_sdpa_fn,
     const struct gptoss_metal_buffer* q_buffer,
     size_t q_offset,
-    const struct gptoss_metal_buffer* k_buffer,
-    size_t k_offset,
-    const struct gptoss_metal_buffer* v_buffer,
-    size_t v_offset,
+    const struct gptoss_metal_buffer* kv_buffer,
+    size_t kv_offset,
     const struct gptoss_metal_buffer* s_buffer,
     size_t s_offset,
     const struct gptoss_metal_buffer* output_buffer,
@@ -1038,6 +1036,7 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_sdpa(
     const struct gptoss_metal_buffer* control_buffer,
     size_t control_offset,
     uint32_t window,
+    uint32_t kv_stride,
     uint32_t num_q_tokens,
     uint32_t num_kv_tokens,
     uint32_t num_q_heads,
@@ -1067,6 +1066,7 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_sdpa(
     const struct gptoss_sdpa_args args = {
         .qkv_dim = head_dim * (num_q_heads + 2 * num_kv_heads),
         .num_kv_tokens = num_kv_tokens,
+        .kv_stride = kv_stride,
         .window = window,
     };
 
@@ -1075,9 +1075,9 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_sdpa(
         threadgroup_size, 1, 1,
         num_q_tokens, num_kv_heads, 1,
         sizeof(args), &args,
-        6,
-        (const struct gptoss_metal_buffer *[]) {q_buffer, k_buffer, v_buffer, s_buffer, output_buffer, control_buffer},
-        (const size_t[]) {q_offset, k_offset, v_offset, s_offset, output_offset, control_offset},
+        5,
+        (const struct gptoss_metal_buffer *[]) {q_buffer, kv_buffer, s_buffer, output_buffer, control_buffer},
+        (const size_t[]) {q_offset, kv_offset, s_offset, output_offset, control_offset},
         /*threadgroup_buffer_size=*/half_threadgroup_size * 8 * 4 * sizeof(float));
 }
 

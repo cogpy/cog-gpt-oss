@@ -39,6 +39,7 @@ struct gptoss_topk_args {
 struct gptoss_sdpa_args {
     uint32_t qkv_dim;
     uint32_t num_kv_tokens;
+    uint32_t kv_stride;
     uint32_t window;
 };
 
