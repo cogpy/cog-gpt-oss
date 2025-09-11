@@ -67,6 +67,84 @@ kernel void gptoss_f32_bf16w_matmul(
     }
 }
 
+kernel void gptoss_f32_bf16w_matmul_qkv(
+    constant gptoss_qkv_args& args [[ buffer(0) ]],
+    const device float4* input [[ buffer(1) ]],
+    const device bfloat4* weight [[ buffer(2) ]],
+    const device bfloat* bias [[ buffer(3) ]],
+    device float* output [[ buffer(4) ]],
+    const device gptoss_control* control [[ buffer(5) ]],
+    threadgroup void* scratch [[ threadgroup(0) ]],
+    uint2 gid [[threadgroup_position_in_grid]],
+    uint simdgroup_tid [[thread_index_in_simdgroup]],
+    uint simdgroup_idx [[simdgroup_index_in_threadgroup]],
+    uint num_simdgroups [[simdgroups_per_threadgroup]])
+{
+    const uint simdgroup_size = 32;
+    const uint head_dim = 64;
+    const uint num_q_heads = 64;
+    const uint num_kv_heads = 8;
+    if (control->abort != 0) {
+        return;
+    }
+
+    const uint num_column_vecs = args.num_column_vecs;
+    const uint row = gid.x * num_simdgroups + simdgroup_idx;
+
+    input += gid.y * num_column_vecs + simdgroup_tid;
+    weight += num_column_vecs * row + simdgroup_tid;
+    bias += row;
+    output += gid.y * args.num_rows;
+
+    uint num_iter = (num_column_vecs - simdgroup_tid + (simdgroup_size - 1)) / simdgroup_size;
+
+    float4 sum4 = 0.0f;
+    do {
+        const bfloat4 w = *weight;
+        const float4 i = *input;
+        sum4 = metal::fma(static_cast<float4>(w), i, sum4);
+
+        weight += simdgroup_size;
+        input += simdgroup_size;
+    } while (--num_iter != 0);
+    const float2 sum2 = sum4.xy + sum4.zw;
+    float sum = sum2.x + sum2.y;
+    sum = metal::simd_sum(sum);
+    if (metal::simd_is_first()) {
+        sum += static_cast<float>(*bias);
+        static_cast<threadgroup float*>(scratch)[simdgroup_idx] = sum;
+    }
+    metal::threadgroup_barrier(metal::mem_flags::mem_threadgroup);
+    if (simdgroup_idx == 0) {
+        const uint num_half_simdgroups = num_simdgroups / 2;
+        if (simdgroup_tid < num_half_simdgroups) {
+            float2 vals = static_cast<const threadgroup float2*>(scratch)[simdgroup_tid];
+            const uint idx = gid.x * num_half_simdgroups + simdgroup_tid;
+            const uint qk_end = (num_q_heads + num_kv_heads) * (head_dim / 2);
+            if (idx < qk_end) {
+                const uint token_idx = args.token_offset + gid.y;
+                const float dim_idx = static_cast<float>(idx % (head_dim / 2));
+
+                const float inv_extrapolation_freq = metal::precise::exp(dim_idx * args.freq_scale);
+                const float inv_interpolation_freq = inv_extrapolation_freq * args.interpolation_scale;
+                const float alpha = metal::saturate(metal::fma(dim_idx, args.yarn_scale, args.yarn_offset));
+                const float inv_freq = metal::mix(inv_extrapolation_freq, inv_interpolation_freq, alpha);
+
+                const float phi = static_cast<float>(token_idx) * inv_freq;
+                const float yarn_multiplier = args.yarn_multiplier;
+                float cosphi;
+                const float sinphi = metal::precise::sincos(phi, cosphi) * yarn_multiplier;
+                cosphi *= yarn_multiplier;
+
+                const float output_re = metal::fma(-vals.y, sinphi, vals.x * cosphi);
+                const float output_im = metal::fma(vals.y, cosphi, vals.x * sinphi);
+                vals = (float2) { output_re, output_im };
+            }
+            reinterpret_cast<device float2*>(output)[idx] = vals;
+        }
+    }
+}
+
 kernel void gptoss_f32_bf16w_unembedding(
     constant gptoss_unembedding_args& args [[ buffer(0) ]],
     const device float4* input [[ buffer(1) ]],

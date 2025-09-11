@@ -126,6 +126,17 @@ struct gptoss_rope_args {
     float yarn_multiplier;
 };
 
+struct gptoss_qkv_args {
+    uint32_t num_column_vecs;
+    uint32_t num_rows;
+    uint32_t token_offset;
+    float freq_scale;
+    float interpolation_scale;
+    float yarn_offset;
+    float yarn_scale;
+    float yarn_multiplier;
+};
+
 struct gptoss_softmax_args {
     uint32_t num_vecs;
     uint32_t num_vecs_per_threadgroup;
