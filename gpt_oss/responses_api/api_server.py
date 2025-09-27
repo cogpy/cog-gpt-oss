@@ -127,6 +127,9 @@ def create_api_server(
         browser_call_ids: Optional[list[str]] = None,
         python_tool: Optional[PythonTool] = None,
         python_call_ids: Optional[list[str]] = None,
+        python_call_outputs: Optional[
+            dict[str, list[CodeInterpreterOutputLogs | CodeInterpreterOutputImage]]
+        ] = None,
         treat_functions_python_as_builtin: bool = False,
     ) -> ResponseObject:
         output = []
@@ -256,12 +259,18 @@ def create_api_server(
                     code_snippet = None
                     if entry_dict.get("content"):
                         code_snippet = entry_dict["content"][0].get("text")
+                    outputs = (
+                        (python_call_outputs or {}).get(code_call_id)
+                        if python_call_outputs
+                        else None
+                    )
                     output.append(
                         CodeInterpreterCallItem(
                             type="code_interpreter_call",
                             id=code_call_id,
                             status="completed",
                             code=code_snippet,
+                            outputs=outputs,
                         )
                     )
                 elif entry_dict["channel"] == "final":
@@ -408,6 +417,9 @@ def create_api_server(
             self.python_tool = python_tool
             self.use_code_interpreter = python_tool is not None
             self.python_call_ids: list[str] = []
+            self.python_call_outputs: dict[
+                str, list[CodeInterpreterOutputLogs | CodeInterpreterOutputImage]
+            ] = {}
             self.functions_python_as_builtin = functions_python_as_builtin
 
         def _send_event(self, event: ResponseEvent):
@@ -432,6 +444,7 @@ def create_api_server(
                 browser_call_ids=self.browser_call_ids,
                 python_tool=self.python_tool,
                 python_call_ids=self.python_call_ids,
+                python_call_outputs=getattr(self, "python_call_outputs", None),
                 treat_functions_python_as_builtin=self.functions_python_as_builtin,
             )
             initial_response.status = "in_progress"
@@ -926,6 +939,8 @@ def create_api_server(
                                             )
                                         )
 
+                            self.python_call_outputs[code_call_id] = code_outputs
+
                             new_tokens = encoding.render_conversation_for_completion(
                                 Conversation.from_messages(result), Role.ASSISTANT
                             )
@@ -990,6 +1005,7 @@ def create_api_server(
                     browser_call_ids=self.browser_call_ids,
                     python_tool=self.python_tool,
                     python_call_ids=self.python_call_ids,
+                    python_call_outputs=self.python_call_outputs,
                     treat_functions_python_as_builtin=self.functions_python_as_builtin,
                 )
                 if self.store_callback and self.request_body.store:
