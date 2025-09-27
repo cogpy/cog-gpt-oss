@@ -26,8 +26,11 @@ from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
 from .events import (
+    ResponseCodeInterpreterCallCodeDelta,
+    ResponseCodeInterpreterCallCodeDone,
     ResponseCodeInterpreterCallCompleted,
     ResponseCodeInterpreterCallInProgress,
+    ResponseCodeInterpreterCallInterpreting,
     ResponseCompletedEvent,
     ResponseContentPartAdded,
     ResponseContentPartDone,
@@ -47,6 +50,8 @@ from .events import (
 )
 from .types import (
     CodeInterpreterCallItem,
+    CodeInterpreterOutputImage,
+    CodeInterpreterOutputLogs,
     Error,
     FunctionCallItem,
     Item,
@@ -248,10 +253,15 @@ def create_api_server(
                     else:
                         code_call_id = f"ci_{uuid.uuid4().hex}"
                     python_tool_index += 1
+                    code_snippet = None
+                    if entry_dict.get("content"):
+                        code_snippet = entry_dict["content"][0].get("text")
                     output.append(
                         CodeInterpreterCallItem(
                             type="code_interpreter_call",
                             id=code_call_id,
+                            status="completed",
+                            code=code_snippet,
                         )
                     )
                 elif entry_dict["channel"] == "final":
@@ -838,6 +848,15 @@ def create_api_server(
                             )
                         ):
                             code_call_id = f"ci_{uuid.uuid4().hex}"
+                            code_snippet = None
+                            if (
+                                last_message.content
+                                and len(last_message.content) > 0
+                                and getattr(last_message.content[0], "text", None)
+                            ):
+                                text_value = last_message.content[0].text or ""
+                                code_snippet = text_value if text_value.strip() else None
+
                             self.python_call_ids.append(code_call_id)
                             yield self._send_event(
                                 ResponseOutputItemAdded(
@@ -846,6 +865,8 @@ def create_api_server(
                                     item=CodeInterpreterCallItem(
                                         type="code_interpreter_call",
                                         id=code_call_id,
+                                        status="in_progress",
+                                        code=code_snippet,
                                     ),
                                 )
                             )
@@ -853,7 +874,31 @@ def create_api_server(
                                 ResponseCodeInterpreterCallInProgress(
                                     type="response.code_interpreter_call.in_progress",
                                     output_index=current_output_index,
-                                    id=code_call_id,
+                                    item_id=code_call_id,
+                                )
+                            )
+                            if code_snippet:
+                                yield self._send_event(
+                                    ResponseCodeInterpreterCallCodeDelta(
+                                        type="response.code_interpreter_call_code.delta",
+                                        output_index=current_output_index,
+                                        item_id=code_call_id,
+                                        delta=code_snippet,
+                                    )
+                                )
+                                yield self._send_event(
+                                    ResponseCodeInterpreterCallCodeDone(
+                                        type="response.code_interpreter_call_code.done",
+                                        output_index=current_output_index,
+                                        item_id=code_call_id,
+                                        code=code_snippet,
+                                    )
+                                )
+                            yield self._send_event(
+                                ResponseCodeInterpreterCallInterpreting(
+                                    type="response.code_interpreter_call.interpreting",
+                                    output_index=current_output_index,
+                                    item_id=code_call_id,
                                 )
                             )
 
@@ -866,6 +911,20 @@ def create_api_server(
                             result = await run_python_tool()
 
                             print(result)
+
+                            code_outputs: list[
+                                CodeInterpreterOutputLogs | CodeInterpreterOutputImage
+                            ] = []
+                            for message in result:
+                                for content in getattr(message, "content", []):
+                                    text_value = getattr(content, "text", None)
+                                    if text_value:
+                                        code_outputs.append(
+                                            CodeInterpreterOutputLogs(
+                                                type="logs",
+                                                logs=text_value,
+                                            )
+                                        )
 
                             new_tokens = encoding.render_conversation_for_completion(
                                 Conversation.from_messages(result), Role.ASSISTANT
@@ -886,7 +945,7 @@ def create_api_server(
                                 ResponseCodeInterpreterCallCompleted(
                                     type="response.code_interpreter_call.completed",
                                     output_index=current_output_index,
-                                    id=code_call_id,
+                                    item_id=code_call_id,
                                 )
                             )
                             yield self._send_event(
@@ -896,6 +955,9 @@ def create_api_server(
                                     item=CodeInterpreterCallItem(
                                         type="code_interpreter_call",
                                         id=code_call_id,
+                                        status="completed",
+                                        code=code_snippet,
+                                        outputs=code_outputs or None,
                                     ),
                                 )
                             )

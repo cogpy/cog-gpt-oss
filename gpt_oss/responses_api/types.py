@@ -87,11 +87,31 @@ class WebSearchCallItem(BaseModel):
     action: Union[WebSearchActionSearch, WebSearchActionOpenPage, WebSearchActionFind]
 
 
+class CodeInterpreterOutputLogs(BaseModel):
+    type: Literal["logs"]
+    logs: str
+
+
+class CodeInterpreterOutputImage(BaseModel):
+    type: Literal["image"]
+    url: str
+
+
 class CodeInterpreterCallItem(BaseModel):
     type: Literal["code_interpreter_call"]
     id: str = "ci_1234"
-    status: Literal["in_progress", "completed", "incomplete"] = "completed"
-    input: Optional[str] = None
+    status: Literal[
+        "in_progress",
+        "completed",
+        "incomplete",
+        "interpreting",
+        "failed",
+    ] = "completed"
+    code: Optional[str] = None
+    container_id: Optional[str] = None
+    outputs: Optional[
+        list[Union[CodeInterpreterOutputLogs, CodeInterpreterOutputImage]]
+    ] = None
 
 
 class Error(BaseModel):
@@ -141,6 +161,7 @@ class ResponsesRequest(BaseModel):
                 FunctionCallItem,
                 FunctionCallOutputItem,
                 WebSearchCallItem,
+                CodeInterpreterCallItem,
             ]
         ],
     ]
