@@ -1,7 +1,7 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
@@ -138,7 +138,8 @@ class FunctionToolDefinition(BaseModel):
 
 
 class BrowserToolConfig(BaseModel):
-    type: Literal["browser_search"]
+    model_config = ConfigDict(extra='allow')
+    type: Literal["browser_search"] | Literal["web_search"]
 
 
 class CodeInterpreterToolConfig(BaseModel):

@@ -130,6 +130,7 @@ def create_api_server(
         python_call_outputs: Optional[
             dict[str, list[CodeInterpreterOutputLogs | CodeInterpreterOutputImage]]
         ] = None,
+        reasoning_ids: Optional[list[str]] = None,
         treat_functions_python_as_builtin: bool = False,
     ) -> ResponseObject:
         output = []
@@ -155,6 +156,8 @@ def create_api_server(
             fc_index = 0
             browser_tool_index = 0
             python_tool_index = 0
+            reasoning_ids_iter = iter(reasoning_ids or [])
+
             for entry in entries:
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
@@ -310,8 +313,12 @@ def create_api_server(
                         )
                         for entry in entry_dict["content"]
                     ]
+                    reasoning_id = next(reasoning_ids_iter, None)
+                    if reasoning_id is None:
+                        reasoning_id = f"rs_{uuid.uuid4().hex}"
                     output.append(
                         ReasoningItem(
+                            id=reasoning_id,
                             type="reasoning",
                             summary=summary,
                             content=content,
@@ -420,6 +427,8 @@ def create_api_server(
             self.python_call_outputs: dict[
                 str, list[CodeInterpreterOutputLogs | CodeInterpreterOutputImage]
             ] = {}
+            self.reasoning_item_ids: list[str] = []
+            self.current_reasoning_item_id: Optional[str] = None
             self.functions_python_as_builtin = functions_python_as_builtin
 
         def _send_event(self, event: ResponseEvent):
@@ -445,6 +454,7 @@ def create_api_server(
                 python_tool=self.python_tool,
                 python_call_ids=self.python_call_ids,
                 python_call_outputs=getattr(self, "python_call_outputs", None),
+                reasoning_ids=self.reasoning_item_ids,
                 treat_functions_python_as_builtin=self.functions_python_as_builtin,
             )
             initial_response.status = "in_progress"
@@ -533,6 +543,11 @@ def create_api_server(
                                     )
                                 )
                         if previous_item.channel == "analysis":
+                            reasoning_id = self.current_reasoning_item_id
+                            if reasoning_id is None:
+                                reasoning_id = f"rs_{uuid.uuid4().hex}"
+                                self.reasoning_item_ids.append(reasoning_id)
+                                self.current_reasoning_item_id = reasoning_id
                             yield self._send_event(
                                 ResponseReasoningTextDone(
                                     type="response.reasoning_text.done",
@@ -557,6 +572,7 @@ def create_api_server(
                                     type="response.output_item.done",
                                     output_index=current_output_index,
                                     item=ReasoningItem(
+                                        id=reasoning_id,
                                         type="reasoning",
                                         summary=[],
                                         content=[
@@ -568,6 +584,7 @@ def create_api_server(
                                     ),
                                 )
                             )
+                            self.current_reasoning_item_id = None
                         if previous_item.channel == "final":
                             annotations = [
                                 UrlCitation(**a) for a in current_annotations
@@ -700,12 +717,18 @@ def create_api_server(
                 ):
                     if not sent_output_item_added:
                         sent_output_item_added = True
+                        reasoning_id = f"rs_{uuid.uuid4().hex}"
+                        self.current_reasoning_item_id = reasoning_id
+                        self.reasoning_item_ids.append(reasoning_id)
                         yield self._send_event(
                             ResponseOutputItemAdded(
                                 type="response.output_item.added",
                                 output_index=current_output_index,
                                 item=ReasoningItem(
-                                    type="reasoning", summary=[], content=[]
+                                    id=reasoning_id,
+                                    type="reasoning",
+                                    summary=[],
+                                    content=[],
                                 ),
                             )
                         )
@@ -1006,6 +1029,7 @@ def create_api_server(
                     python_tool=self.python_tool,
                     python_call_ids=self.python_call_ids,
                     python_call_outputs=self.python_call_outputs,
+                    reasoning_ids=self.reasoning_item_ids,
                     treat_functions_python_as_builtin=self.functions_python_as_builtin,
                 )
                 if self.store_callback and self.request_body.store:
