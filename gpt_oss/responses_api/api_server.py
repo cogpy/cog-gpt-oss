@@ -374,6 +374,7 @@ def create_api_server(
         )
 
     class StreamResponsesEvents:
+        BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
         initial_tokens: list[int]
         tokens: list[int]
         output_tokens: list[int]
@@ -430,6 +431,31 @@ def create_api_server(
             self.reasoning_item_ids: list[str] = []
             self.current_reasoning_item_id: Optional[str] = None
             self.functions_python_as_builtin = functions_python_as_builtin
+            self.user_defined_function_names = {
+                name
+                for tool in (request_body.tools or [])
+                for name in [getattr(tool, "name", None)]
+                if getattr(tool, "type", None) == "function" and name
+            }
+
+        def _resolve_browser_recipient(
+            self, recipient: Optional[str]
+        ) -> tuple[Optional[str], bool]:
+            if not self.use_browser_tool or not recipient:
+                return (None, False)
+
+            if recipient.startswith("browser."):
+                return (recipient, False)
+
+            if recipient.startswith("functions."):
+                potential = recipient[len("functions.") :]
+                if (
+                    potential in self.BROWSER_RESERVED_FUNCTIONS
+                    and potential not in self.user_defined_function_names
+                ):
+                    return (potential, True)
+
+            return (None, False)
 
         def _send_event(self, event: ResponseEvent):
             event.sequence_number = self.sequence_number
@@ -508,8 +534,11 @@ def create_api_server(
                         previous_item = self.parser.messages[-1]
                         if previous_item.recipient is not None:
                             recipient = previous_item.recipient
+                            browser_recipient, _ = self._resolve_browser_recipient(
+                                recipient
+                            )
                             if (
-                                not recipient.startswith("browser.")
+                                browser_recipient is None
                                 and not (
                                     recipient == "python"
                                     or (
@@ -763,14 +792,20 @@ def create_api_server(
                 if next_tok in encoding.stop_tokens_for_assistant_actions():
                     if len(self.parser.messages) > 0:
                         last_message = self.parser.messages[-1]
-                        if (
-                            self.use_browser_tool
-                            and last_message.recipient is not None
-                            and last_message.recipient.startswith("browser.")
-                        ):
-                            function_name = last_message.recipient[len("browser.") :]
+                        browser_recipient, is_browser_fallback = (
+                            self._resolve_browser_recipient(last_message.recipient)
+                        )
+                        if browser_recipient is not None and browser_tool is not None:
+                            message_for_browser = (
+                                last_message
+                                if not is_browser_fallback
+                                else last_message.with_recipient(browser_recipient)
+                            )
+                            function_name = browser_recipient[len("browser.") :]
                             action = None
-                            parsed_args = browser_tool.process_arguments(last_message)
+                            parsed_args = browser_tool.process_arguments(
+                                message_for_browser
+                            )
                             if function_name == "search":
                                 action = WebSearchActionSearch(
                                     type="search",
@@ -820,7 +855,9 @@ def create_api_server(
 
                             async def run_tool():
                                 results = []
-                                async for msg in browser_tool.process(last_message):
+                                async for msg in browser_tool.process(
+                                    message_for_browser
+                                ):
                                     results.append(msg)
                                 return results
 
