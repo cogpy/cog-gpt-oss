@@ -71,6 +71,9 @@ from .types import (
 DEFAULT_TEMPERATURE = 0.0
 
 
+BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
+
+
 def get_reasoning_effort(
     effort: Union[Literal["low", "medium", "high"], ReasoningEffort]
 ) -> ReasoningEffort:
@@ -95,6 +98,28 @@ def is_not_builtin_tool(
         and recipient != "python"
         and recipient != "assistant"
     )
+
+
+def resolve_browser_recipient(
+    recipient: Optional[str],
+    browser_tool: Optional[SimpleBrowserTool],
+    user_defined_function_names: set[str],
+) -> tuple[Optional[str], bool]:
+    if browser_tool is None or not recipient:
+        return (None, False)
+
+    if recipient.startswith("browser."):
+        return (recipient, False)
+
+    if recipient.startswith("functions."):
+        potential = recipient[len("functions.") :]
+        if (
+            potential in BROWSER_RESERVED_FUNCTIONS
+            and potential not in user_defined_function_names
+        ):
+            return (potential, True)
+
+    return (None, False)
 
 
 def create_api_server(
@@ -157,48 +182,25 @@ def create_api_server(
             browser_tool_index = 0
             python_tool_index = 0
             reasoning_ids_iter = iter(reasoning_ids or [])
+            user_defined_function_names = {
+                name
+                for tool in (request_body.tools or [])
+                for name in [getattr(tool, "name", None)]
+                if getattr(tool, "type", None) == "function" and name
+            }
 
             for entry in entries:
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
-                if len(recipient) > 0 and is_not_builtin_tool(
-                    recipient, treat_functions_python_as_builtin
-                ):
-                    call = entry_dict["content"][0]
-                    arguments = call["text"]
-                    name = recipient
-
-                    if name.startswith("functions."):
-                        name = name[len("functions.") :]
-                    if function_call_ids and fc_index < len(function_call_ids):
-                        fc_id, call_id = function_call_ids[fc_index]
-                    else:
-                        fc_id, call_id = (
-                            f"fc_{uuid.uuid4().hex}",
-                            f"call_{uuid.uuid4().hex}",
-                        )
-                    fc_index += 1
-                    output.append(
-                        FunctionCallItem(
-                            type="function_call",
-                            name=name,
-                            arguments=arguments,
-                            id=fc_id,
-                            call_id=call_id,
-                        )
-                    )
-                elif (
-                    len(recipient) > 0
-                    and recipient.startswith("browser.")
-                    and browser_tool is not None
-                ):
-                    # Mirror event-based creation of WebSearchCallItems when the browser tool is invoked
-                    name = recipient
+                browser_recipient, _ = resolve_browser_recipient(
+                    recipient, browser_tool, user_defined_function_names
+                )
+                if browser_recipient is not None and browser_tool is not None:
+                    name = browser_recipient
                     call = entry_dict["content"][0]
                     arguments = call["text"]
                     function_name = name[len("browser.") :]
 
-                    # Reconstruct a Message for argument parsing
                     tool_msg = (
                         Message.from_role_and_content(Role.ASSISTANT, arguments)
                         .with_recipient(name)
@@ -243,6 +245,33 @@ def create_api_server(
                                 action=action,
                             )
                         )
+                    continue
+                if len(recipient) > 0 and is_not_builtin_tool(
+                    recipient, treat_functions_python_as_builtin
+                ):
+                    call = entry_dict["content"][0]
+                    arguments = call["text"]
+                    name = recipient
+
+                    if name.startswith("functions."):
+                        name = name[len("functions.") :]
+                    if function_call_ids and fc_index < len(function_call_ids):
+                        fc_id, call_id = function_call_ids[fc_index]
+                    else:
+                        fc_id, call_id = (
+                            f"fc_{uuid.uuid4().hex}",
+                            f"call_{uuid.uuid4().hex}",
+                        )
+                    fc_index += 1
+                    output.append(
+                        FunctionCallItem(
+                            type="function_call",
+                            name=name,
+                            arguments=arguments,
+                            id=fc_id,
+                            call_id=call_id,
+                        )
+                    )
                 elif (
                     len(recipient) > 0
                     and (
@@ -374,7 +403,6 @@ def create_api_server(
         )
 
     class StreamResponsesEvents:
-        BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
         initial_tokens: list[int]
         tokens: list[int]
         output_tokens: list[int]
@@ -441,21 +469,9 @@ def create_api_server(
         def _resolve_browser_recipient(
             self, recipient: Optional[str]
         ) -> tuple[Optional[str], bool]:
-            if not self.use_browser_tool or not recipient:
-                return (None, False)
-
-            if recipient.startswith("browser."):
-                return (recipient, False)
-
-            if recipient.startswith("functions."):
-                potential = recipient[len("functions.") :]
-                if (
-                    potential in self.BROWSER_RESERVED_FUNCTIONS
-                    and potential not in self.user_defined_function_names
-                ):
-                    return (potential, True)
-
-            return (None, False)
+            return resolve_browser_recipient(
+                recipient, self.browser_tool, self.user_defined_function_names
+            )
 
         def _send_event(self, event: ResponseEvent):
             event.sequence_number = self.sequence_number
