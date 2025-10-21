@@ -1,8 +1,8 @@
-![gpt-oss](./docs/gpt-oss.svg)
+![cog-gpt-oss](./docs/gpt-oss.svg)
 
-# Awesome gpt-oss
+# Awesome cog-gpt-oss (OpenCog)
 
-This is a list of guides and resources to help you get started with the gpt-oss models.
+This is a list of guides and resources to help you get started with the cog-gpt-oss models (OpenCog implementations of gpt-oss).
 
 - [Inference](#inference)
   - [Local](#local)
