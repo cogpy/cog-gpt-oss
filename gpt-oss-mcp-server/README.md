@@ -1,6 +1,6 @@
-# MCP Servers for gpt-oss reference tools
+# MCP Servers for cog-gpt-oss (OpenCog) reference tools
 
-This directory contains MCP servers for the reference tools in the [gpt-oss](https://github.com/openai/gpt-oss) repository.
+This directory contains MCP servers for the reference tools in the [cog-gpt-oss](https://github.com/cogpy/cog-gpt-oss) repository (OpenCog implementations).
 You can set up these tools behind MCP servers and use them in your applications.
 For inference service that integrates with MCP, you can also use these as reference tools.
 
