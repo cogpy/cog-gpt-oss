@@ -1,24 +1,28 @@
-<img alt="gpt-oss-120" src="./docs/gpt-oss.svg">
+<img alt="cog-gpt-oss-120" src="./docs/gpt-oss.svg">
 <p align="center">
-  <a href="https://gpt-oss.com"><strong>Try gpt-oss</strong></a> ·
+  <a href="https://gpt-oss.com"><strong>Try cog-gpt-oss</strong></a> ·
   <a href="https://cookbook.openai.com/topic/gpt-oss"><strong>Guides</strong></a> ·
   <a href="https://arxiv.org/abs/2508.10925"><strong>Model card</strong></a> ·
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
 <p align="center">
-  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</strong>
+  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">cog-gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">cog-gpt-oss-20b</a> on Hugging Face</strong>
 </p>
 
 <br>
 
-Welcome to the gpt-oss series, [OpenAI's open-weight models](https://openai.com/open-models/) designed for powerful reasoning, agentic tasks, and versatile developer use cases.
+Welcome to the cog-gpt-oss series, OpenCog implementations of open-weight language models by OpenAI, designed for powerful reasoning, agentic tasks, and versatile developer use cases.
 
-We're releasing two flavors of these open models:
+We're releasing two flavors of these OpenCog adaptations:
 
-- `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single 80GB GPU (like NVIDIA H100 or AMD MI300X) (117B parameters with 5.1B active parameters)
-- `gpt-oss-20b` — for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
+- `cog-gpt-oss-120b` — OpenCog implementation for production, general purpose, high reasoning use cases that fit into a single 80GB GPU (like NVIDIA H100 or AMD MI300X) (117B parameters with 5.1B active parameters)
+- `cog-gpt-oss-20b` — OpenCog implementation for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
+
+## What is OpenCog?
+
+OpenCog is a framework for creating adaptations of open-weight language models. The cog-gpt-oss implementations maintain compatibility with the original gpt-oss models while providing an OpenCog-branded interface and tooling ecosystem.
 
 ## Table of Contents
 - [Highlights](#highlights)
@@ -42,7 +46,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
+- **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `cog-gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `cog-gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
 
 ### Inference examples
 
@@ -204,7 +208,7 @@ Check out our [awesome list](./awesome-gpt-oss.md) for a broader collection of g
 
 ## About this repository
 
-This repository provides a collection of reference implementations:
+This repository provides OpenCog implementations and reference code for the cog-gpt-oss models. It includes a collection of reference implementations:
 
 - **Inference:**
   - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
@@ -242,20 +246,20 @@ pip install gpt-oss[triton]
 If you want to modify the code or try the metal implementation set the project up locally:
 
 ```shell
-git clone https://github.com/openai/gpt-oss.git
+git clone https://github.com/cogpy/cog-gpt-oss.git
 GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 ## Download the model
 
-You can download the model weights from the [Hugging Face Hub](https://huggingface.co/collections/openai/gpt-oss-68911959590a1634ba11c7a4) directly from Hugging Face CLI:
+The cog-gpt-oss models are compatible with the original gpt-oss weights. You can download the model weights from the [Hugging Face Hub](https://huggingface.co/collections/openai/gpt-oss-68911959590a1634ba11c7a4) directly from Hugging Face CLI:
 
 ```shell
-# gpt-oss-120b
-hf download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
+# cog-gpt-oss-120b (uses gpt-oss-120b weights)
+hf download openai/gpt-oss-120b --include "original/*" --local-dir cog-gpt-oss-120b/
 
-# gpt-oss-20b
-hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
+# cog-gpt-oss-20b (uses gpt-oss-20b weights)
+hf download openai/gpt-oss-20b --include "original/*" --local-dir cog-gpt-oss-20b/
 ```
 
 ## Reference PyTorch implementation
@@ -272,12 +276,12 @@ And then run:
 
 ```shell
 # On 4xH100:
-torchrun --nproc-per-node=4 -m gpt_oss.generate gpt-oss-120b/original/
+torchrun --nproc-per-node=4 -m gpt_oss.generate cog-gpt-oss-120b/original/
 ```
 
 ## Reference Triton implementation (single GPU)
 
-We also include an optimized reference implementation that uses [an optimized triton MoE kernel](https://github.com/triton-lang/triton/tree/main/python/triton_kernels/triton_kernels) that supports MXFP4. It also has some optimization on the attention code to reduce the memory cost. To run this implementation, the nightly version of triton and torch will be installed. This version can be run on a single 80GB GPU for `gpt-oss-120b`.
+We also include an optimized reference implementation that uses [an optimized triton MoE kernel](https://github.com/triton-lang/triton/tree/main/python/triton_kernels/triton_kernels) that supports MXFP4. It also has some optimization on the attention code to reduce the memory cost. To run this implementation, the nightly version of triton and torch will be installed. This version can be run on a single 80GB GPU for `cog-gpt-oss-120b`.
 
 To install the reference Triton implementation run
 
@@ -298,7 +302,7 @@ And then run:
 ```shell
 # On 1xH100
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
+python -m gpt_oss.generate --backend triton cog-gpt-oss-120b/original/
 ```
 
 If you encounter `torch.OutOfMemoryError`, make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
@@ -322,14 +326,14 @@ python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_fil
 Or download the pre-converted weights:
 
 ```shell
-hf download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
-hf download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
+hf download openai/gpt-oss-120b --include "metal/*" --local-dir cog-gpt-oss-120b/metal/
+hf download openai/gpt-oss-20b --include "metal/*" --local-dir cog-gpt-oss-20b/metal/
 ```
 
 To test it you can run:
 
 ```shell
-python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
+python gpt_oss/metal/examples/generate.py cog-gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
 ```
 
 ## Harmony format & tools
@@ -371,7 +375,7 @@ options:
 ```
 
 > [!NOTE]
-> The torch and triton implementations require original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
+> The torch and triton implementations require original checkpoint under `cog-gpt-oss-120b/original/` and `cog-gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `cog-gpt-oss-120b/` and `cog-gpt-oss-20b/` root directory respectively.
 
 ### Responses API
 

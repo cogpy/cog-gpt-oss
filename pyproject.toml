@@ -1,6 +1,6 @@
 [project]
 name = "gpt-oss"
-description = "A collection of reference inference implementations for gpt-oss by OpenAI"
+description = "OpenCog implementations (cog-gpt-oss-120b and cog-gpt-oss-20b) - adaptations of open-weight language models by OpenAI"
 
 dependencies = [
   "openai-harmony",
