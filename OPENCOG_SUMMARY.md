@@ -4,7 +4,21 @@
 This repository now contains OpenCog implementations of open-weight language models by OpenAI. The models `cog-gpt-oss-120b` and `cog-gpt-oss-20b` are OpenCog adaptations that maintain full compatibility with the original `gpt-oss-120b` and `gpt-oss-20b` models.
 
 ## What is OpenCog?
-OpenCog is a framework for creating adaptations of open-weight language models. The cog-gpt-oss implementations maintain compatibility with the original gpt-oss models while providing an OpenCog-branded interface and tooling ecosystem.
+
+[OpenCog](https://opencog.org/) is an open-source AGI (Artificial General Intelligence) framework and cognitive architecture designed to advance AI to human-level general intelligence and beyond. The OpenCog project, now evolving into [OpenCog Hyperon](https://hyperon.opencog.org/), integrates multiple AI paradigms including:
+
+- **AtomSpace**: A graph database and knowledge representation system using hypergraphs for storing knowledge as "Atoms"
+- **Probabilistic Logic Networks (PLN)**: For uncertain inference and reasoning
+- **Neural-symbolic integration**: Combining symbolic reasoning with neural approaches
+- **MeTTa**: A novel programming language for introspective and self-modifying programs
+- **Cognitive Synergy**: Multiple learning and reasoning algorithms working together
+
+The cog-gpt-oss implementations apply OpenCog's cognitive architecture principles to open-weight language models by OpenAI. These adaptations maintain full compatibility with the original gpt-oss models while providing an OpenCog-inspired interface and tooling ecosystem for advancing toward more general AI capabilities.
+
+For more information about the OpenCog AGI framework, visit:
+- [wiki.opencog.org](https://wiki.opencog.org/) - OpenCog Wiki
+- [hyperon.opencog.org](https://hyperon.opencog.org/) - OpenCog Hyperon Project
+- [github.com/opencog](https://github.com/opencog) - OpenCog GitHub Organization
 
 ## Changes Made
 

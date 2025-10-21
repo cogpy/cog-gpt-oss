@@ -1,6 +1,6 @@
 [project]
 name = "gpt-oss"
-description = "OpenCog implementations (cog-gpt-oss-120b and cog-gpt-oss-20b) - adaptations of open-weight language models by OpenAI"
+description = "OpenCog AGI framework implementations (cog-gpt-oss-120b and cog-gpt-oss-20b) - cognitive architecture adaptations of open-weight language models by OpenAI"
 
 dependencies = [
   "openai-harmony",
@@ -22,6 +22,11 @@ dependencies = [
 readme = "README.md"
 requires-python = ">=3.12"
 version = "0.0.8"
+
+[project.urls]
+"OpenCog Wiki" = "https://wiki.opencog.org/"
+"OpenCog Hyperon" = "https://hyperon.opencog.org/"
+"Homepage" = "https://github.com/cogpy/cog-gpt-oss"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
